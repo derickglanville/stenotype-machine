@@ -1,5 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id), storeKey='verbatim-sessions-v1';
+let dictionaryGeneration=0;
 let sessions=[],current,dict={...Steno.starter},selected=new Set(),pointers=new Map(),held=new Set(),recent=[],recognition=null,recording=false,speechSession=null,auth=null,user=null;
 const notice=message=>{$('notice').textContent=message;};
 function fresh(){return{id:crypto.randomUUID(),title:'',text:'',strokes:[],updated:new Date().toISOString()};}
@@ -31,7 +32,7 @@ $('write').onclick=writeStroke;$('clear').onclick=clearChord;$('sticky').onchang
 const keymap={KeyQ:'S-',KeyA:'S-',KeyW:'T-',KeyS:'K-',KeyE:'P-',KeyD:'W-',KeyR:'H-',KeyF:'R-',KeyT:'*',KeyG:'*',KeyY:'*',KeyH:'*',KeyC:'A',KeyV:'O',KeyN:'E',KeyM:'U',KeyU:'-F',KeyJ:'-R',KeyI:'-P',KeyK:'-B',KeyO:'-L',KeyL:'-G',KeyP:'-T',Semicolon:'-S',BracketLeft:'-D',Quote:'-Z',Digit1:'#'};
 window.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;if(e.code==='Escape'){clearChord();return;}if(e.code==='Enter'&&selected.size){e.preventDefault();writeStroke();return;}const k=keymap[e.code];if(k){e.preventDefault();if(!e.repeat){held.add(e.code);selected.add(k);paint();}}});
 window.addEventListener('keyup',e=>{if(!held.has(e.code))return;held.delete(e.code);if(!held.size&&!pointers.size)writeStroke();});window.addEventListener('blur',clearChord);
-$('dictionary').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>20000000)throw Error('Dictionary limit is 20 MB.');const d=JSON.parse(await f.text());if(!d||typeof d!=='object'||Array.isArray(d))throw Error('Choose a Plover JSON dictionary.');const entries=Object.entries(d).filter(([k,v])=>/^[#STKPWHRAO*EUFRBLGDZ0-9\/-]+$/.test(k)&&Steno.plain(v));if(!entries.length)throw Error('No plain-text entries found.');dict={...Steno.starter,...Object.fromEntries(entries)};recent=[];$('dictionary-state').textContent=entries.length.toLocaleString()+' entries loaded for this visit.';}catch(err){notice(err.message);}e.target.value='';};
+$('dictionary').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>20000000)throw Error('Dictionary limit is 20 MB.');const d=JSON.parse(await f.text());if(!d||typeof d!=='object'||Array.isArray(d))throw Error('Choose a Plover JSON dictionary.');const entries=Object.entries(d).filter(([k,v])=>/^[#STKPWHRAO*EUFRBLGDZ0-9\/-]+$/.test(k)&&Steno.plain(v));if(!entries.length)throw Error('No plain-text entries found.');dictionaryGeneration++;dict={...Steno.starter,...Object.fromEntries(entries)};recent=[];$('dictionary-state').textContent=entries.length.toLocaleString()+' entries loaded for this visit.';}catch(err){notice(err.message);}e.target.value='';};
 const Speech=window.SpeechRecognition||window.webkitSpeechRecognition;
 function speechUI(active){recording=active;$('dictate').classList.toggle('recording',active);$('dictate').textContent=active?'■ Stop dictation':'● Start dictation';$('language').disabled=active;}
 if(!Speech){$('dictate').disabled=true;$('speech-state').textContent='Dictation unavailable in this browser. Try Safari on your iPhone or iPad, or use the keyboard microphone in the transcript.';}else{$('dictate').onclick=()=>{if(recording){$('speech-state').textContent='Finishing dictation…';recognition.stop();return;}try{recognition=new Speech();recognition.lang=$('language').value;recognition.continuous=true;recognition.interimResults=true;speechSession=current.id;const seen=new Set();let failed=false;speechUI(true);$('speech-state').textContent='Requesting microphone…';recognition.onstart=()=>{$('speech-state').textContent='Listening · keep this page open';};recognition.onresult=e=>{if(current.id!==speechSession)return;let interim='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal){if(!seen.has(i)){seen.add(i);append(e.results[i][0].transcript.trim());}}else interim+=e.results[i][0].transcript;}$('interim').textContent=interim;};recognition.onerror=e=>{failed=true;$('speech-state').textContent='Dictation stopped: '+e.error+'. Tap Start to retry.';};recognition.onend=()=>{speechUI(false);$('interim').textContent='';if(!failed)$('speech-state').textContent='Dictation stopped. Tap Start to continue.';};recognition.start();}catch(err){speechUI(false);$('speech-state').textContent='Unable to start dictation: '+err.message;}};}
@@ -44,3 +45,17 @@ if(window.firebase){firebase.initializeApp(config);auth=firebase.auth();auth.set
 $('account').onclick=async()=>{try{if(!auth)throw Error('Google sign-in could not load. Check your internet connection and reload.');if(user){await auth.signOut();notice('Signed out. Session drafts remain on this device.');}else await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());}catch(err){notice(err.message);}};
 $('cloud').onclick=async()=>{const b=$('cloud');try{update();const snapshot=JSON.parse(JSON.stringify(current));const payload=JSON.stringify(snapshot);if(new TextEncoder().encode(payload).length>850000)throw Error('This session is too large for one cloud document. Export a backup and start a new session.');b.disabled=true;await remote('/'+snapshot.id,'PATCH',{fields:{payload:{stringValue:payload},updated:{stringValue:snapshot.updated}}});notice('Cloud copy saved: '+(snapshot.title||'Untitled proceeding')+'.');}catch(err){notice(err.message);}finally{b.disabled=false;}};
 show();persist();
+
+async function loadBundledDictionary(){
+ const generation=dictionaryGeneration;
+ $('dictionary-state').textContent='Loading Plover dictionary…';
+ try{
+  const response=await fetch('plover-main.json');if(!response.ok)throw Error('Dictionary download failed');
+  const data=await response.json();
+  const entries=Object.entries(data).filter(([k,v])=>/^[#STKPWHRAO*EUFRBLGDZ\/-]+$/.test(k)&&k.split('/').length<=8&&Steno.plain(v));
+  if(generation!==dictionaryGeneration)return;
+  dict={...Steno.starter,...Object.fromEntries(entries)};recent=[];
+  $('dictionary-state').textContent='Plover dictionary ready · '+entries.length.toLocaleString()+' supported entries. Loads automatically each visit.';
+ }catch(error){if(generation===dictionaryGeneration)$('dictionary-state').textContent='Plover dictionary could not load. Starter words remain available. Reload to retry or import a JSON dictionary.';}
+}
+loadBundledDictionary();

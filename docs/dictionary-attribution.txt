@@ -1,0 +1,5 @@
+Plover main dictionary, unmodified from Open Steno Project / Plover v4.0.0.
+Source: https://github.com/opensteno/plover/blob/v4.0.0/plover/assets/main.json
+Plover is GPL v2 or later; see PLOVER-LICENSE.txt.
+Editable JSON source is distributed alongside this notice. No warranty.
+Verbatim filters unsupported entries at runtime. The source dictionary is unchanged.
