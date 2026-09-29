@@ -79,3 +79,8 @@ async function loadBundledDictionary(){
  }catch(error){if(generation===dictionaryGeneration)$('dictionary-state').textContent='Plover dictionary could not load. Starter words remain available. Reload to retry or import a JSON dictionary.';}
 }
 loadBundledDictionary();
+
+$('clear-live-translation').onclick=()=>{
+ if(window.KeyboardLearning?.active||window.Training?.active||recording){notice('End the lesson or practice, and stop dictation, before clearing the translation.');return;}
+ recent=[];clearChord();$('transcript').value='';update();notice('Translation cleared. Steno stroke history is preserved.');
+};
