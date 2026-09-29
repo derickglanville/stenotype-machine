@@ -18,3 +18,5 @@
 #learn-sentence .lesson-strokes{font-family:ui-monospace,monospace;font-size:16px;color:#e8bd80;overflow-wrap:anywhere;min-width:0}
 
 .key.demo-held{background:#e8bd80!important;transform:translateY(4px);box-shadow:inset 0 3px 6px #102c3670;outline:3px solid #76e5e8}.key.demo-held::after{content:"●";display:block;font-size:10px;line-height:12px;color:#17343e}
+
+.learn-controls .live-translation{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex:1 1 240px;min-width:0}.live-translation textarea{margin:0;width:100%;height:64px;min-height:44px;padding:8px 10px;background:#f5fbfb;color:#183740;border:1px solid #9dbfc7;border-radius:6px;font:16px/1.4 ui-monospace,monospace}.learn-controls{align-items:center}#live-translation-help{font-size:12px;color:#c4dbe1}
